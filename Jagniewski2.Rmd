@@ -1,0 +1,361 @@
+---
+title: "Jagniewski2"
+author: "Tadeusz Jagniewski"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: true
+    fig_caption: yes
+    fig_width: 5 
+    fig_height: 4 
+    number_sections: true
+header-includes:
+   - \usepackage[OT4]{polski}
+   - \usepackage[utf8]{inputenc}
+   - \usepackage{graphicx}
+   - \usepackage{float}
+fontsize: 12pt 
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(dplyr)
+library(xtable)
+library(patchwork)
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "", fig.align = "center", dev = "cairo_pdf")
+```
+
+# Wstęp
+
+Wczytuje Dane z pliku *lab 3 (2026).xlsx*.
+
+
+```{r ładowanie danych}
+dane <- read_excel("lab3.xlsx")
+x <- dane$x
+y <- dane$y
+```
+
+# Zadanie 1
+
+Wyznaczam estymatory $\hat\beta_0$ i $\hat\beta_1$.
+
+```{r estymatory beta}
+estymatory <- function(x, y) {
+  beta1 <- sum((x - mean(x)) * (y - mean(y))) / sum((x - mean(x))^2)
+  
+  beta0 <- mean(y) - beta1 * mean(x)
+  
+  return(c(beta0, beta1))
+}
+est <- estymatory(x,y)
+beta0 <- est[1]
+beta1 <- est[2]
+```
+
+Współczynniki są równe $\hat\beta_0 =$ `r round(beta0,4)` oraz $\hat\beta_1 =$ `r round(beta1,4)`. 
+
+Następnie za pomocą funkcji *prognoza* przewiduje wyniki Y.
+
+```{r prognoza y}
+prognoza <- function(x, beta0, beta1){
+  y <- beta0 + beta1*x
+  return(y)
+}
+y.est <- prognoza(x,beta0,beta1)
+```
+
+Teraz przeprowadzę analizę reszt na podstawie reszt i współczynnika $R^2$
+
+Histogram rezyduów jest przedstawiony na rysunku \ref{fig:rezydua_histogram}.
+
+```{r rezydua_histogram, echo=FALSE, fig.cap="Histogram rezyduów"}
+rezydum<-function(y,y_0){
+  e <- y - y_0
+  return(e)
+}
+e <- rezydum(y, y.est)
+df_res <- data.frame(X = x, Prognoza = y.est, Rezydua = e)
+ggplot(df_res, aes(x = Rezydua)) +
+  geom_histogram(bins = 15, fill = "lightblue", color = "black") +
+  labs(title = "Histogram rezyduów", x = "Wartość rezyduum", y = "Liczebność") +
+  theme_minimal()
+
+```
+
+Wykres kwantylowy rezyduów jest przedstawiony na rysunku \ref{fig:rezydua_wykres_kwantylowy}.
+
+```{r rezydua_wykres_kwantylowy, echo=FALSE, fig.cap="Wykres kwantylowy rezyduów"}
+ggplot(df_res, aes(sample = Rezydua)) +
+  stat_qq(color = "blue", alpha = 0.7) +
+  stat_qq_line(color = "red", size = 1) +
+  labs(title = "Wykres kwantylowy rezyduów", x = "Kwantyle teoretyczne", y = "Kwantyle z próby") +
+  theme_minimal()
+```
+
+Wykres rozrzutu rezyduów względem estymowanych wartości jest przedstawiony na rysunku \ref{fig:rezydua_rozrzut_prognozy}.
+```{r rezydua_rozrzut_prognozy, echo=FALSE, fig.cap="Wykres rozrzutu rezyduów względem prognoz"}
+ggplot(df_res, aes(x = Prognoza, y = Rezydua)) +
+  geom_point(color = "darkgreen", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rezydua vs Wartości prognozowane", x = "Wartość prognozowana", y = "Rezydua (e)") +
+  theme_minimal()
+
+```
+
+Wykres rozrzutu rezyduów względem wartości zmiennej $x$ jest przedstawiony na rysunku \ref{fig:rezydua_rozrzut_x}.
+
+```{r rezydua_rozrzut_x, echo=FALSE, fig.cap="Wykres rozrzutu rezyduów względem wartości zmiennej x"}
+ggplot(df_res, aes(x = X, y = Rezydua)) +
+  geom_point(color = "purple", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rezydua vs Zmienna objaśniająca X", x = "Zmienna X", y = "Rezydua (e)") +
+  theme_minimal()
+
+```
+
+Na rysunkach \ref{fig:rezydua_rozrzut_prognozy} i \ref{fig:rezydua_rozrzut_x} ewidentnie widać, że reszty nie układają się w losową chumrę, a raczej przybierają kształt układając się w taką jakby "falę", co sugeruje że model nie jest dobrze dopasowany i trzeba coś zmienić, aby go poprawić. Sprawdzę jeszcze jaką wartość przybiera współczynnik $R^2= \frac{\sum_{i=1}^n(\hat y_i - \bar y)^2}{\sum_{i=1}^n( y_i - \bar y)^2}$
+
+
+```{r Funkcja R2}
+R2<-function(y,y.est){
+  return(sum((y.est - mean(y))^2) / sum((y - mean(y))^2))
+} 
+r2 <- R2(y,y.est)
+```
+
+Współczynnik $R^2$ wynosi `r round(r2,4)`, co potwierdza moją powyższą tezę o tym, że model jest średnio dopasowany.
+
+# Zadanie 2
+
+Teraz jeszcze zobaczymy, czy dane mają charakter liniowy (lepiej zrobić to przed przypasowaniem modelu ale taka jest już kolejność zadań).
+
+Wykres rozrzutu zmiennych $x,y$ jest przedstawiony na rysunku \ref{fig:wykres-rozrzutu-xy}
+
+```{r wykres-rozrzutu-xy, echo=FALSE, eval=TRUE, fig.cap="Wykres rozrzutu dla zmiennych x oraz y"}
+dane_wykres <- data.frame(X = x, Y = y)
+
+ggplot(dane_wykres, aes(x = X, y = Y)) +
+  geom_point(color = "blue", size = 2, alpha = 0.7) +  
+  labs(
+    title = "Wykres rozrzutu zmiennych X i Y",
+    x = "X",
+    y = "Y"
+  ) +
+  theme_minimal()
+```
+
+Wykres przypomina funkcję logarytmiczną, więc zależność między X a Y na pewno nie jest liniowa.
+
+# Zadanie 3
+
+Wybieram przekształcenie na zmienna objaśniającą postaci $\tilde{X} = log(X)$, ponieważ wykres funkcji zmiennych $x,y$, więc zastosowanie tej funkcji powinno zniwelować zaokrąglenie i "wyprostować" zarys funkcji. 
+
+```{r przeksztalcenie zmiennej objasniajacej}
+x.1 <- log(x)
+```
+
+
+Wykres rozrzutu zmiennych $x,y$ po przekształceniu jest przedstawiony na rysunku \ref{fig:wykres-rozrzutu-x1y}
+
+```{r wykres-rozrzutu-x1y, echo=FALSE, eval=TRUE, fig.cap="Wykres rozrzutu dla zmiennych x oraz y"}
+dane_wykres <- data.frame(X = x.1, Y = y)
+
+ggplot(dane_wykres, aes(x = X, y = Y)) +
+  geom_point(color = "blue", size = 2, alpha = 0.7) +  
+  labs(
+    title = "Wykres rozrzutu zmiennych X i Y",
+    x = "X",
+    y = "Y"
+  ) +
+  theme_minimal()
+```
+
+Rozład punktów znacząco się poprawił, więc wstępnie zakładam, że moje przekształcenie, może pomóc lepiej dopsować model.
+
+# Zadanie 4
+
+Wyznaczam estymatory $\hat\beta_0$ i $\hat\beta_1$.
+
+```{r estymatory beta 0 1}
+est <- estymatory(x.1,y)
+beta0.1 <- est[1]
+beta1.1 <- est[2]
+```
+
+Współczynniki są równe $\hat\beta_0 =$ `r round(beta0.1,4)` oraz $\hat\beta_1 =$ `r round(beta1.1,4)`. 
+
+Następnie za pomocą funkcji *prognoza* przewiduje wyniki Y.
+
+```{r prognoza y1}
+y.est.1 <- prognoza(x.1,beta0.1,beta1.1)
+```
+
+Teraz przeprowadzę analizę reszt na podstawie reszt i współczynnika $R^2$
+
+Histogram rezyduów jest przedstawiony na rysunku \ref{fig:rezydua_histogram1}.
+
+```{r rezydua_histogram1, echo=FALSE, fig.cap="Histogram rezyduów"}
+e.1 <- rezydum(y, y.est.1)
+df_res.1 <- data.frame(X = x.1, Prognoza = y.est.1, Rezydua = e.1)
+ggplot(df_res.1, aes(x = Rezydua)) +
+  geom_histogram(bins = 15, fill = "lightblue", color = "black") +
+  labs(title = "Histogram rezyduów", x = "Wartość rezyduum", y = "Liczebność") +
+  theme_minimal()
+
+```
+
+Wykres kwantylowy rezyduów jest przedstawiony na rysunku \ref{fig:rezydua_wykres_kwantylowy1}.
+
+```{r rezydua_wykres_kwantylowy1, echo=FALSE, fig.cap="Wykres kwantylowy rezyduów"}
+ggplot(df_res.1, aes(sample = Rezydua)) +
+  stat_qq(color = "blue", alpha = 0.7) +
+  stat_qq_line(color = "red", size = 1) +
+  labs(title = "Wykres kwantylowy rezyduów", x = "Kwantyle teoretyczne", y = "Kwantyle z próby") +
+  theme_minimal()
+```
+
+Wykres rozrzutu rezyduów względem estymowanych wartości jest przedstawiony na rysunku \ref{fig:rezydua_rozrzut_prognozy1}.
+```{r rezydua_rozrzut_prognozy1, echo=FALSE, fig.cap="Wykres rozrzutu rezyduów względem prognoz"}
+ggplot(df_res.1, aes(x = Prognoza, y = Rezydua)) +
+  geom_point(color = "darkgreen", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rezydua vs Wartości prognozowane", x = "Wartość prognozowana", y = "Rezydua (e)") +
+  theme_minimal()
+
+```
+
+Wykres rozrzutu rezyduów względem wartości zmiennej $x$ jest przedstawiony na rysunku \ref{fig:rezydua_rozrzut_x1}.
+
+```{r rezydua_rozrzut_x1, echo=FALSE, fig.cap="Wykres rozrzutu rezyduów względem wartości zmiennej x"}
+ggplot(df_res.1, aes(x = X, y = Rezydua)) +
+  geom_point(color = "purple", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rezydua vs Zmienna objaśniająca X", x = "Zmienna X", y = "Rezydua (e)") +
+  theme_minimal()
+
+```
+
+
+Już te wykresy wyglądają o wiele lepiej i o wiele bardziej losowo zachowują się reszty, mimo że więcej punktów gromadzi się po prawej stronie wykresu.
+
+Sprawdzę teraz ile wyniesie współczynnik $R^2$.
+
+```{r}
+r2.1 <- R2(y,y.est.1)
+```
+
+Współczynnik wynosi `r round(r2.1,4)`, więc jest on znacznie lepszy niż w przypadku poprzedniego modelu bez przekształcenia.
+
+# Zadanie 5 
+
+Porównam teraz współczynniki determinacji, a następnie wykresy, które już wcześniej pokazałem.
+
+W przypadku pierwszego modelu wynosi on `r round(r2,4)`, a w przypadku modelu po przekształceniu wynosił już `r round(r2.1,4)`, więc jest znacznie lepszy.
+
+Teraz wezmę pod lupę wykresy reszt.
+
+Histogramy rezyduów są przedstawione na rysunku \ref{fig:rezydua_histogram2}.
+
+```{r rezydua_histogram2, echo=FALSE, fig.cap="Histogram rezyduów"}
+p1 <- ggplot(df_res, aes(x = Rezydua)) +
+  geom_histogram(bins = 15, fill = "lightblue", color = "black") +
+  labs(title = "Histogram reszt model1", x = "Rezydua", y = "Liczebność") +
+  theme_minimal()
+
+p2 <- ggplot(df_res.1, aes(x = Rezydua)) +
+  geom_histogram(bins = 15, fill = "lightblue", color = "black") +
+  labs(title = "Histogram reszt model2", x = "Rezydua", y = "Liczebność") +
+  theme_minimal()
+
+p1 + p2
+```
+
+Histogram modelu 2, moim zdaniem bardziej przypomina rozkład normalny.
+
+Wykresy kwantylowe rezyduów są przedstawione na rysunku \ref{fig:rezydua_wykres_kwantylowy2}.
+
+```{r rezydua_wykres_kwantylowy2, echo=FALSE, fig.cap="Wykres kwantylowy rezyduów"}
+p3 <- ggplot(df_res, aes(sample = Rezydua)) +
+  stat_qq(color = "blue", alpha = 0.7) +
+  stat_qq_line(color = "red", size = 1) +
+  labs(title = "Wykres kwantylowy rez", x = "Kwantyle teoretyczne", y = "Kwantyle z próby") +
+  theme_minimal()
+p4 <- ggplot(df_res.1, aes(sample = Rezydua)) +
+  stat_qq(color = "blue", alpha = 0.7) +
+  stat_qq_line(color = "red", size = 1) +
+  labs(title = "Wykres kwantylowy rez", x = "Kwantyle teoretyczne", y = "Kwantyle z próby") +
+  theme_minimal()
+p3 + p4
+```
+
+Wykres drugiego modelu zawiera znacznie mniej obserwacji odstających.
+
+
+Wykresy rozrzutu rezyduów względem estymowanych wartości są przedstawione na rysunku \ref{fig:rezydua_rozrzut_prognozy2}.
+
+```{r rezydua_rozrzut_prognozy2, echo=FALSE, fig.cap="Wykres rozrzutu rezyduów względem prognoz"}
+p5 <- ggplot(df_res, aes(x = Prognoza, y = Rezydua)) +
+  geom_point(color = "darkgreen", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rez vs Wartości prog", x = "Wartość prognozowana", y = "Rezydua (e)") +
+  theme_minimal()
+p6 <- ggplot(df_res.1, aes(x = Prognoza, y = Rezydua)) +
+  geom_point(color = "darkgreen", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rez vs Wartości prog", x = "Wartość prognozowana", y = "Rezydua (e)") +
+  theme_minimal()
+p5 + p6
+```
+
+Rezydua drugiego modelu, mimo że bardziej kumulują się po prawej stronie to tworzą o wiele bardziej losową chmurę.
+
+Wykres rozrzutu rezyduów względem wartości zmiennej $x$ jest przedstawiony na rysunku \ref{fig:rezydua_rozrzut_x2}.
+
+```{r rezydua_rozrzut_x2, echo=FALSE, fig.cap="Wykres rozrzutu rezyduów względem wartości zmiennej x"}
+p7 <- ggplot(df_res, aes(x = X, y = Rezydua)) +
+  geom_point(color = "purple", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rez vs X", x = "Zmienna X", y = "Rezydua (e)") +
+  theme_minimal()
+p8 <- ggplot(df_res.1, aes(x = X, y = Rezydua)) +
+  geom_point(color = "purple", size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Rez vs X", x = "Zmienna X", y = "Rezydua (e)") +
+  theme_minimal()
+p7 + p8
+```
+
+Rezydua drugiego modelu, mimo że bardziej kumulują się po prawej stronie to tworzą o wiele bardziej losową chmurę.
+
+# Zadanie 6
+
+Porównanie zmiennych znajduje się w tabelach  \ref{tab:tabela} i  \ref{tab:tabela1}
+
+```{r tabela, echo=FALSE, eval=TRUE, results='asis', tab.cap="Porównanie oszacowań modeli"}
+tab <- data.frame(Obserwowane_Y = y[1:25], Y.est_model1 = y.est[1:25], Y.est_model2 = y.est.1[1:25])
+tabela <- xtable(tab, caption = "Porównanie oszacowań modeli", label = "tab:tabela")
+print(tabela, comment = FALSE)
+```
+
+\newpage
+
+```{r tabela1, echo=FALSE, eval=TRUE, results='asis', tab.cap="Porównanie oszacowań modeli"}
+tab <- data.frame(Obserwowane_Y = y[26:50], Y.est_model1 = y.est[26:50], Y.est_model2 = y.est.1[26:50])
+tabela <- xtable(tab, caption = "Porównanie oszacowań modeli", label = "tab:tabela1")
+print(tabela, comment = FALSE)
+```
+
+\newpage
+
+Wyraźnie widać w tabeli, że model 2 radzi sobie znacząco lepiej z szacowaniem zmiennych.
+
+# Zadanie 7 
+
+Transformacja zdecydowaniem była opłacalna, co zostało potwierdzone przez podwyższony współczynnik determinacji $R^2$, wyreksy reszt i finalnie tabele \ref{tab:tabela} oraz  \ref{tab:tabela1}, w której wyraźnie widać już od początku który model lepiej przybliżał wartości obserwowanego Y.
+
