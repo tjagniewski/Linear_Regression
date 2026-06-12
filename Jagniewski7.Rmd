@@ -1,0 +1,112 @@
+---
+title: "Raport z listy 7"
+subtitle: "Modele regresji i ich zastosowania"
+author: "Tadeusz Jagniewski,   album 277522"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: true
+    fig_caption: yes
+    fig_width: 5 
+    fig_height: 4 
+    number_sections: true
+header-includes:
+   - \usepackage[OT4]{polski}
+   - \usepackage[utf8]{inputenc}
+   - \usepackage{graphicx}
+   - \usepackage{float}
+fontsize: 12pt 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "", fig.align = "center")
+
+set.seed(123)
+```
+
+
+```{r}
+library(readxl)
+dane = read_excel("lab7.xlsx")
+```
+
+```{r}
+Y <- dane$y
+X1 <- dane$X1
+X2 <- dane$X2
+X3 <- dane$X3
+coryx1 <- cor(Y, X1)
+coryx2 <- cor(Y, X2)
+coryx3 <- cor(Y, X3)
+```
+
+```{r}
+resyx1 <- lm(Y ~ X2 + X3, data = dane)$residuals
+resx1  <- lm(X1 ~ X2 + X3, data = dane)$residuals
+pcoryx1 <- cor(resyx1, resx1)
+
+resyx2 <- lm(Y ~ X1 + X3, data = dane)$residuals
+resx2  <- lm(X2 ~ X1 + X3, data = dane)$residuals
+pcoryx2 <- cor(resyx2, resx2)
+
+resyx3 <- lm(Y ~ X1 + X2, data = dane)$residuals
+resx3  <- lm(X3 ~ X1 + X2, data = dane)$residuals
+pcoryx3 <- cor(resyx3, resx3)
+
+wyniki <- data.frame(
+  Zmienna_Objaśniająca = c("X1", "X2", "X3"),
+  Korelacja_Zwykła = c(coryx1, coryx2, coryx3),
+  Korelacja_Cząstkowa = c(pcoryx1, pcoryx2, pcoryx3)
+)
+library(knitr)
+
+kable(wyniki, 
+      caption = "Porównanie korelacji zwykłej i cząstkowej",
+      col.names = c("Zmienna Objaśniająca", "Korelacja Zwykła", "Korelacja Cząstkowa"),
+      digits = 4, 
+      align = "c") 
+```
+
+Zmienna X1: Zwykły współczynnik korelacji sugerował bardzo słaby związek (około 0.20), jednak korelacja cząstkowa okazała się bardzo silna (0.85). W rzeczywistości X1 ma silny, pozytywny wpływ na Y.
+
+Zmienna X2: Zwykła korelacja była niemal zerowa (0.0075), co na pierwszy rzut oka sugeruje całkowity brak związku. Dopiero korelacja cząstkowa ujawniła bardzo silną, ujemną zależność (-0.84). Pozostałe zmienne całkowicie ukrywały fakt, że X2 silnie wpływa na Y
+
+Zmienna X3: Zwykła korelacja była umiarkowana (0.50), ale po odfiltrowaniu wpływu reszty zmiennych wzrosła do silnego poziomu (0.75). 
+
+Porównanie obu miar pokazuje, jak myląca może być zwykła korelacja w modelach z wieloma zmiennymi. Dopiero korelacja cząstkowa pozwoliła odkryć, że wszystkie trzy zmienne (X1, X2 i X3) są w rzeczywistości bardzo istotne i silnie powiązane ze zmienną objaśnianą Y.
+
+
+
+```{r}
+par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
+
+plot(dane$X1, dane$Y, pch = 16, col = "blue",
+     main = "Wykres rozrzutu (Y, X1)", xlab = "X1", ylab = "Y")
+
+plot(resx1, resyx1, pch = 16, col = "darkgreen",
+     main = "Regresja cząstkowa (Y, X1 | X2, X3)", 
+     xlab = "Reszty dla X1", ylab = "Reszty dla Y")
+abline(lm(resyx1 ~ resx1), col = "red", lwd = 2)
+
+plot(dane$X2, dane$Y, pch = 16, col = "blue",
+     main = "Wykres rozrzutu (Y, X2)", xlab = "X2", ylab = "Y")
+
+plot(resx2, resyx2, pch = 16, col = "darkgreen",
+     main = "Regresja cząstkowa (Y, X2 | X1, X3)", 
+     xlab = "Reszty dla X2", ylab = "Reszty dla Y")
+abline(lm(resyx2 ~ resx2), col = "red", lwd = 2)
+
+plot(dane$X3, dane$Y, pch = 16, col = "blue",
+     main = "Wykres rozrzutu (Y, X3)", xlab = "X3", ylab = "Y")
+
+plot(resx3, resyx3, pch = 16, col = "darkgreen",
+     main = "Regresja cząstkowa (Y, X3 | X1, X2)", 
+     xlab = "Reszty dla X3", ylab = "Reszty dla Y")
+abline(lm(resyx3 ~ resx3), col = "red", lwd = 2)
+
+par(mfrow = c(1, 1))
+```
+
+Podczas gdy wykresy rozrzutu przypominają losową chmurę, wykresy regresji cząstkowej wyraźnie układają się wzdłóż linii.
