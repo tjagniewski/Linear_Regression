@@ -1,0 +1,445 @@
+---
+title: "Raport z listy 10"
+author: "Tadeusz Jagnieski,   album 277522"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    fig_caption: true
+    fig_width: 5
+    fig_height: 4
+    number_sections: true
+  word_document:
+    toc: true
+subtitle: Modele regresji i ich zastosowania
+header-includes:
+- \usepackage[OT4]{polski}
+- \usepackage[utf8]{inputenc}
+- \usepackage{multirow}
+- \usepackage{graphicx}
+- \usepackage{booktabs}
+- \usepackage{float}
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "", fig.align = "center")
+
+set.seed(123)
+```
+
+
+
+# Generowanie zbioru danych do regresji logistycznej
+<!-- Rozmiar próby: n = 300, liczba zmiennych objaśniających X1, . . . , Xp: 
+p = 20, przy czym zmienna X1 jest tożsamościowo równa 1.
+-->
+
+Model regresji logistycznej jest postaci:
+$$\log\frac{p(\mathbf{x})}{1-p(\mathbf{x})}=x\beta^T$$
+gdzie $p(\mathbf{x})=\mathbb{P}(Y=1\mid\mathbf{X}=\mathbf{x})$ 
+to prawdopodobieństwo sukcesu, $\mathbf{x}$ to wektor cech, a $\beta$ to
+wektor nieznanych parametrów w modelu.
+
+Reguła klasyfikacyjna jest postaci:
+$$
+d^*(\mathbf{x})
+=
+\begin{cases}
+1,& \text{gdy}\quad  p(\mathbf{x})>\pi_0,\\
+0,& \text{gdy}\quad  p(\mathbf{x})\leq\pi_0,\\
+\end{cases}
+$$
+gdzie $\pi_0$ jest pewną stałą z przedziału $(0,1)$.
+
+## Część 1.
+<!-- Przyjąć, że jedynie zmienne X1, . . . , X10 wpływają na Y , przypisując im -->
+<!-- (wybrane) niezerowe współczynniki β1, . . . , β10. Pozostałym zmiennym -->
+<!-- przypisać współczynniki regresji równe zeru, tzn. β11 = . . . = β20 = 0 -->
+
+
+Generujemy $n=300$ obserwacji a liczba zmiennych objaśniających jest równa $20$.
+
+```{r}
+# ustawiamy ziarno
+set.seed(67)
+
+# rozmiar próby
+n <- 300
+
+# liczba zmiennych objaśniających
+p<-20
+
+# wektor współczynników beta
+beta <- numeric(20)
+beta[1:10] <- runif(10, -3, 3)
+```
+
+Współczynniki $\beta$ w modelu to
+
+```{r}
+print(cbind(i=1:20, beta_i=beta))
+```
+
+
+## Część 2.
+<!-- Dla i = 1, 2, . . . , n wykonać następujące kroki -->
+
+
+### Podpunkt (a)
+<!-- Przyjąć xi1 = 1 oraz wygenerować wartości xi2, xi3, . . . , xip pozostałych -->
+<!-- p − 1 zmiennych objaśniających X2, . . . ,Xp. Przyjąć, -->
+<!-- że każda z tych wartości pochodzi z rozkładu normalnego (np. -->
+<!-- rnorm()). -->
+
+Dla $i=1,2,\ldots,20$ przyjmujemy, że $x_{i1}=1$ a nastepnie generujemy, 
+za pomocą standardowego rozkładu normalnego $\mathcal{N}(0,1)$, wartości
+$x_{i2},x_{i3},\ldots,x_{i20}$ dla pozostałych $p-1=19$ zmiennych objaśniających 
+$X_2,X_3,\ldots,X_{20}$
+
+```{r}
+# ustawianie ziarna
+set.seed(123)
+
+# generowanie obserwacji dla X1 (same jedynki)
+X1 <- rep(1,n)
+
+# generowanie obserwacji dla X2,...,X20 z rozkładu normalnego N(0,1)
+X2...20 <- matrix(rnorm(n*(p-1)), nrow=n, ncol=p-1)
+
+# łączymy kolumnowo [X1] oraz [X2...20] w macierz X
+X <- cbind(X1, X2...20)
+```
+
+
+
+
+### Podpunkt (b)
+<!-- Wygenerować wartość yi binarnej zmiennej objaśnianej Y , która -->
+<!-- przyjmuje wartości 0 i 1 z prawdopodobieństwami odpowiednio -->
+<!-- 1 − π(xi) oraz π(xi), gdzie xi = (xi1, . . . , xip) -->
+
+
+Generujemy wartości $y_i, i=1,2\ldots,300$ binarnej zmiennej objaśniającej $Y$,
+która przyjmuje wartości $0$ oraz $1$ z prawdopodobieństwami, odpowiednio,
+$\pi(\mathbf{x}_i)$ oraz $1-\pi(\mathbf{x}_i)$, 
+gdzie $\mathbf{x}_i=(x_{i1},\ldots,x_{ip})$ oraz
+
+$$
+\pi(\mathbf{x}_i)
+=\mathbb{P}(Y=1\mid X_1=x_{i1},\ldots,X_{p}=x_{ip})
+=\frac{1}{1+\exp\left(-(\beta_1 x_{i1}+\ldots+\beta_p x_{ip})\right)}
+$$
+
+
+```{r}
+# ustawiamy ziarno
+set.seed(67)
+
+# zapisujemy iloczyn beta_1 * x_{i1}+...+beta_p * x_{ip} jako [lin_pred]
+lin_pred <- X%*%beta
+
+# zapisujemy p-stwo 1/(1+exp(...)) z wykorzystaniem [lin_pred] jako [prob]
+prob <- 1/(1 + exp(-lin_pred))
+
+# generujemy [y] jako n obserwacji z rozkładu dwumianowego B(1,prob)
+Y<-rbinom(n,1,prob) 
+
+# łączymy [y] oraz [X] w ramkę danych [df]
+df<-as.data.frame(cbind(X,Y))
+
+# zmieniamy nazwy kolumn tej ramki danych [df] na X1,...,X20,Y
+colnames(df)<-c(paste0("x",1:p),"Y")
+
+# i zapisujemy [df] do pliku "dane_logistyczne.csv" z row.names=FALSE
+write.csv(df, file="dane_logistyczne.csv", row.names=FALSE)
+
+# i wczytujemy ten plik jako [dane]
+dane<-read.csv(file="dane_logistyczne.csv",sep=",",dec=".",check.names=F)
+```
+
+
+
+
+
+
+# Konstrukcja modelu regresji logistycznej
+
+## Zadanie 1: Wczytać do pakietu statystycznego dane z utworzonego pliku.
+
+
+### podpunkt (a): 
+<!-- Podzielić losowo zbiór danych w proporcji 70 : 30 na zbiór treningowy  -->
+<!-- i zbiór testowy, dbając o to, aby frakcja (odsetek) rekordów -->
+<!-- ze zmienną y = 1 w obu zbiorach była zbliżona. -->
+Cały zbiór danych zawiera `r n` obserwacji, które podzielimy w proporcji $70:30$ 
+na część uczącą i część testową za pomocą funkcji \textit{createDataPartition()}
+z pakietu \texttt{caret}.
+
+```{r}
+# ustawiamy ziarno
+set.seed(123)
+
+# załączamy pakiet caret
+library(caret)
+
+# wybieramy indeksy obserwacji do zbioru treningowego
+trainIndex <- createDataPartition(dane$Y, p=0.7, list=FALSE)
+
+# tworzymy część treningową
+train <- dane[trainIndex,]
+
+# tworzymy część testową
+test <- dane[-trainIndex,]
+```
+
+
+### podpunkt (b): 
+<!-- Wykorzystując zbiór treningowy, skonstruować model regresji -->
+<!-- logistycznej opisujący zależność między zmienną objaśnianą Y a -->
+<!-- wszystkimi zmiennymi objaśniającymi X1, . . . , Xp. -->
+
+
+Modele regresji logistycznej stworzymy przy pomocy fukcji \textit{glm()}.
+
+```{r}
+# model regresji logistycznej ze wszystkimi zmiennymi
+model.full <- glm(Y~., family = "binomial", data=train[,-1])
+
+# model regresji logistycznej tylko ze stałą
+model.null <- glm(Y~1, family = "binomial", data=train[,-1])
+```
+
+
+
+### podpunkt (c): 
+<!-- Za pomocą testu ilorazu wiarygodności zweryfikować hipotezę zerową -->
+<!-- H0 : β2 = . . . = βp = 0, -->
+<!-- która stwierdza, że żadna ze zmiennych objaśniających X2, . . . , Xp -->
+<!-- nie wpływa na zmienną objaśnianą Y . Wyznaczyć p-wartość testu -->
+<!-- oraz rozstrzygnąć, czy na poziomie istotności α = 0.05 należy -->
+<!-- odrzucić H0. -->
+
+Do przeprowadzenia wspomnianego w zadaniu testu ilorazu wiarogodności 
+wykorzystamy funkcję \textit{anova()}.
+
+```{r}
+lrt.test <- anova(model.null, model.full, test = "LRT")
+p.value  <- lrt.test$`Pr(>Chi)`[2]
+```
+
+Na podstawie testu opartego na ilorazie wiarogodności na poziomie istotności 
+$\alpha = 0.05$ odrzucamy hipotezę $H_0$ mówiącą, że 
+$\beta_2 = \beta_3 = \ldots = \beta_{20}=0$, więc przynajmniej jedna jest niezerowa, więc przynjmniej jedna beta ma liniow wpływ na model regresji
+P-wartość tego testu to `r p.value` .
+
+
+
+
+### podpunkt (d): 
+<!-- Dla każdego z parametrów βi, i = 2, . . . , p: -->
+<!-- i. wyznaczyć estymatory βbi oraz ich błędy standardowe SEβi, -->
+
+Estymatory $\hat{\beta_i}$ oraz ich błędy standardowe $SE_{\beta_i}$ 
+otrzymujemy za pomocą podsumowania \textit{summary()} modelu pełnego 
+i są podane w tabeli poniżej.
+
+```{r}
+# oszacowania współczynników, błędy standardowe tych oszacowań i p-wartości 
+# za pomocą summary(...)[["coefficients"]]
+
+summary(model.full)[["coefficients"]]
+```
+
+
+<!-- ii. skonstruować przedziały ufności na poziomie 1 − α, -->
+
+Przedziały ufności otrzymujemy za pomocą funkcji \textit{confint()} 
+i są podane w kolejnej tabeli.
+
+```{r}
+# ustawiamy ziarno
+set.seed(123)
+
+#tworzenie przedziałów ufności dla [model.full] za pomocą confint()
+przedzialy <- confint(model.full)
+
+# wyświetlenie stworzonych przedziałów ufności
+przedzialy
+```
+
+
+<!-- iii. zweryfikować hipotezę H0 : βi = 0 przeciwko H1 : βi ̸= 0 na -->
+<!-- poziomie istotności alpha. -->
+
+Do zweryfikowania hipotezy $H_0: \quad \beta_i=0$ przeciwko 
+hipotezie alternatywnej $H_1:\quad \beta_i\neq 0$ można wykorzystać tabelę 
+z przedziałami ufności.
+
+Otrzymujemy z niej, że zmienne x2, x4, x5, x9, x10 mają istotny
+wpływ na zmienną $Y$, ponieważ nie zawierają zera w przedziale ufności i p-wartość jest mniejsza niż 0.05.
+
+Alternatywnie: można wykorzystać wyznaczone p-wartości tych testów:
+
+```{r}
+which(summary(model.full)[["coefficients"]][,4]<0.05)
+```
+
+
+### podpunkt (e): 
+<!-- Porównać wektor parametrów β = (β1, . . . , βp)  -->
+<!-- z jego estymatorem βb = (βb1, . . . , βbp).  -->
+<!-- W tym celu sprawdzić, czy estymator βb poprawnie zidentyfikował 
+<!-- wszystkie niezerowe elementy wektora β oraz czy prawidłowo określił ich znaki --->
+
+```{r}
+data.frame(beta = beta,
+           beta.est = model.full$coefficients,
+           istotny  = ifelse(summary(model.full)[["coefficients"]][,4]<0.05,
+                      "TAK",
+                      "nieistotna"))
+```
+
+
+Od 11 do 20 wszytskie model prawidłowo zidentyfikował jako nieistotne, ale niestety uznał też za nieistotne zmienne x3, x6, x7, x8 a teoretycznie powinny być istotne, występuje też jedna zmiana znaku w przypadku zmiennej x7, ale jest ona nieistotna.
+
+## Zadanie 2
+<!-- Zinterpretować dwa niezerowe współczynniki estymatora βb  -->
+<!-- w kategoriach ilorazu szans (odds ratio). -->
+
+Ilorazy szans to eksponenty z estymatorów wspołczynników 
+tzn. $\exp(\hat{\beta_i})$. 
+
+Przykładowo, dla zmiennych x4 oraz x5 te ilorazy szans to, odpowiednio,
+15.71873 oraz 0.1174869
+
+Oznacza to, że przy wzroście x4 o $1$ szanse rosną o około 1472%, natomiast wzrost 
+x5 o jeden powoduje spadek szans o około 88.25% 
+
+Jeśli obie te zmienne wzrosną o $1$ to wtedy szanse rosną o około 84.67%, bo ich 
+wspólny iloraz szans to 1.846745 ($\approx$ 15.71873*0.1174869)
+
+
+
+## zadanie 3
+<!-- Dla dwóch poziomów odcięcia π0 = 0.5 oraz π0 = 0.7 wykorzystać -->
+<!-- zbiór testowy do skonstruowania classification table. Wyznaczyć miary -->
+<!-- zdolności predykcyjnej modelu: sensitivity, specificity, false positive rate, -->
+<!-- false negative rate, overall proportion of correct classifications. -->
+Konstruujemy macierz pomyłek postaci
+
+$$
+\begin{tabular}{cc|cc}
+\multicolumn{1}{c}{} &\multicolumn{1}{c}{} &\multicolumn{2}{c}{Actual} \\ 
+\multicolumn{1}{c}{} & 
+\multicolumn{1}{c|}{} & 
+\multicolumn{1}{c}{0} & 
+\multicolumn{1}{c}{1} \\ \hline
+\multirow[c]{2}{*}{\rotatebox[origin=tr]{90}{Predicted}}
+& 0  & TN & FN   \\[5ex]
+& 1  & FP   & TP \\ \hline
+\end{tabular}
+$$
+
+Wyznaczamy miary zdolności predykcyjnej modelu:
+
+\begin{itemize}
+\item $Sensitivity =\frac{TP}{TP+FN}$ 
+\item $Specificity =\frac{TN}{TN+FP}$ 
+\item $FPR =\frac{FP}{TN+FP}$ 
+\item $FNR =\frac{FN}{TP+FN}$ 
+\item $Accuracy =\frac{TP+TN}{TP+TN+FP+FN}$ 
+\end{itemize}
+
+```{r}
+# predykcje [model.full] na zbiorze [test] za pomocą funkcji predict()
+# z argumentem type="response"
+predict.test <- predict(model.full, newdata = test, type = "response")
+
+#funkcja wyznaczajaca macierz pomyłek dla danego poziomu odciecia threshold
+
+conf.matrix.metrics<-function(threshold){
+
+  # przewidywana klasa, zgodnie z regułą klasyfikacyjną d*
+  pred.class <- ifelse(predict.test > threshold, 1, 0)
+
+  # macierz pomyłek za pomocą table()
+  # dla Predicted=pred.class i Actual=test$Y
+  cm <- table(Predicted=pred.class, Actual=test$Y)
+
+  # wskaźniki
+  sensitivity <- cm[2,2] / sum(cm[,2])
+  specificity <- cm[1,1] / sum(cm[,1])
+  fpr         <- cm[2,1] / sum(cm[,1])
+  fnr         <- cm[1,2] / sum(cm[,2])
+  acc         <- (cm[1,1] + cm[2,2]) / sum(cm)
+
+  # lista zwracanych wyników
+  list(cm=cm,
+       sensitivity = sensitivity,
+       specificity = specificity,
+       fpr = fpr,
+       fnr = fnr,
+       accuracy=acc)}
+
+# macierz pomyłek [M1] dla threshold=0.5
+M.1 <- conf.matrix.metrics(0.5)
+
+# macierz pomyłek [M2] dla threshold=0.7
+M.2 <- conf.matrix.metrics(0.7)
+```
+
+Macierze pomyłek:
+
+```{r}
+print(M.1$cm)
+```
+
+```{r}
+print(M.2$cm)
+```
+
+Wskaźnki porównujace modele:
+
+```{r}
+acc1<-M.1$accuracy
+acc2 <- M.2$accuracy
+cbind(M1 = M.1[2:6], M2 = M.2[2:6])
+```
+
+
+Lepszy jest niższy treshhold na poziomie 0.5 ponieważ jego accuracy wynosi `r acc1`, a drugiego `r acc2` i ogólnie model lepiej sobie radzi w sensitivity i fpr, chociaz to akurat lepiej jakby było mniejsze. M2 jest nieco lepszy w specificity i znacząco więcej ma w fnr.
+
+## Zadanie 4
+<!-- Wykorzystać zbiór testowy do narysowania krzywej ROC. Wyznaczyć -->
+<!-- pole pod krzywą ROC (AUC) i zinterpretować jego wartość  -->
+<!-- w kontekście wartości predykcyjnej modelu. -->
+
+
+```{r}
+# załączamy pakiet <pROC>
+library(pROC)
+
+# tworzymy krzywą ROC [roc.object] za pomocą funkcji roc()
+# dla [test$Y] oraz [predict.test]
+roc.object <- roc(test$Y, predict.test)
+
+# wyznaczmy AUC dla [roc.object] za pomocą funkcji auc()
+auc(roc.object)
+```
+
+Wartość wychodzi wysoka więc jest to dobry model ponieważ chcemy aby było jak najbliżej jedynki no i jest zdecydowanie lepsze niż klasyfikator losowy, którego pole wynosi 0.5.
+
+```{r}
+# rysujemy wykres krzwyej ROC [roc.object] za pomocą
+plot(roc.object, col="blue")
+```
+
+
+
+
+
+
+
